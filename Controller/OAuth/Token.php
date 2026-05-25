@@ -89,6 +89,11 @@ class Token implements HttpPostActionInterface, HttpGetActionInterface, CsrfAwar
 
         try {
             $client = $this->authenticateClient();
+            if ($client->isDisabled()) {
+                // Per RFC 6749 §5.2: refuse the grant; the matching `error` for a
+                // client that's been administratively retired is invalid_client.
+                throw new OAuthException('invalid_client', 'OAuth client is disabled.', 401);
+            }
             $grantType = $this->stringParam('grant_type');
 
             return match ($grantType) {

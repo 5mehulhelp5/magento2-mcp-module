@@ -8,6 +8,7 @@ declare(strict_types=1);
 
 namespace Magebit\Mcp\Model\Config;
 
+use Magebit\Mcp\Model\Config\Source\ReauthBehavior;
 use Magento\Framework\App\Config\ScopeConfigInterface;
 
 /**
@@ -32,6 +33,7 @@ class ModuleConfig
     public const XML_PATH_OAUTH_AUTH_CODE_LIFETIME = 'magebit_mcp/oauth/auth_code_lifetime';
     public const XML_PATH_OAUTH_ACCESS_TOKEN_LIFETIME = 'magebit_mcp/oauth/access_token_lifetime';
     public const XML_PATH_OAUTH_REFRESH_TOKEN_LIFETIME_DAYS = 'magebit_mcp/oauth/refresh_token_lifetime_days';
+    public const XML_PATH_OAUTH_REAUTH_BEHAVIOR = 'magebit_mcp/oauth/reauth_behavior';
 
     public const DEFAULT_SERVER_NAME = 'Magento MCP';
     public const DEFAULT_RATE_LIMITING_RPM = 60;
@@ -246,5 +248,15 @@ class ModuleConfig
         $value = $this->scopeConfig->getValue(self::XML_PATH_OAUTH_REFRESH_TOKEN_LIFETIME_DAYS);
         $days = is_scalar($value) ? (int) $value : 0;
         return $days > 0 ? $days : self::DEFAULT_OAUTH_REFRESH_TOKEN_LIFETIME_DAYS;
+    }
+
+    /**
+     * One of {@see ReauthBehavior::ALLOW_MULTIPLE} / ROTATE / REJECT.
+     *
+     * @return string
+     */
+    public function getOAuthReauthBehavior(): string
+    {
+        return ReauthBehavior::normalize($this->scopeConfig->getValue(self::XML_PATH_OAUTH_REAUTH_BEHAVIOR));
     }
 }

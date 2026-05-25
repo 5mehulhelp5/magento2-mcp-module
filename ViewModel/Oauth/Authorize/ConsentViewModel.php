@@ -10,10 +10,12 @@ namespace Magebit\Mcp\ViewModel\Oauth\Authorize;
 
 use Magebit\Mcp\Api\ToolRegistryInterface;
 use Magebit\Mcp\Helper\Acl\ToolResourceTree;
+use Magebit\Mcp\Model\OAuth\AuthMode;
 use Magebit\Mcp\Model\OAuth\Client;
 use Magento\Backend\Model\Auth;
 use Magento\Framework\Serialize\Serializer\Json;
 use Magento\Framework\View\Element\Block\ArgumentInterface;
+use Magento\User\Model\ResourceModel\User\CollectionFactory as UserCollectionFactory;
 use Magento\User\Model\User;
 
 /**
@@ -29,13 +31,69 @@ class ConsentViewModel implements ArgumentInterface
      * @param ToolRegistryInterface $toolRegistry
      * @param Auth $auth
      * @param Json $jsonSerializer
+     * @param UserCollectionFactory $userCollectionFactory
      */
     public function __construct(
         private readonly ToolResourceTree $toolResourceTree,
         private readonly ToolRegistryInterface $toolRegistry,
         private readonly Auth $auth,
-        private readonly Json $jsonSerializer
+        private readonly Json $jsonSerializer,
+        private readonly UserCollectionFactory $userCollectionFactory
     ) {
+    }
+
+    /**
+     * @param Client|null $client
+     * @return bool
+     */
+    public function isSharedMode(?Client $client): bool
+    {
+        return $client !== null && $client->getAuthMode() === AuthMode::SHARED;
+    }
+
+    /**
+     * Loads the pinned service admin's display name for the shared-mode
+     * banner. Returns null when the client isn't in shared mode or the row
+     * has gone missing (e.g. admin deleted).
+     *
+     * @param Client|null $client
+     * @return string|null
+     */
+    public function getServiceAdminDisplayName(?Client $client): ?string
+    {
+        if ($client === null || $client->getAuthMode() !== AuthMode::SHARED) {
+            return null;
+        }
+        $userId = $client->getServiceAdminUserId();
+        if ($userId === null || $userId <= 0) {
+            return null;
+        }
+        // Collection lookup instead of Model::load() — keeps the rule
+        // "bitExpertMagento.abstractModelUseServiceContract" satisfied. The
+        // admin user table doesn't ship a public repository, so the collection
+        // is the cleanest equivalent.
+        $collection = $this->userCollectionFactory->create();
+        $collection->addFieldToFilter('user_id', ['eq' => $userId]);
+        $user = $collection->getFirstItem();
+        if (!($user instanceof User) || $user->getId() === null) {
+            return null;
+        }
+        $username = self::scalarToString($user->getData('username'));
+        $firstName = self::scalarToString($user->getData('firstname'));
+        $lastName = self::scalarToString($user->getData('lastname'));
+        $fullName = trim($firstName . ' ' . $lastName);
+        return $fullName !== ''
+            ? sprintf('%s (%s)', $fullName, $username)
+            : $username;
+    }
+
+    /**
+     * @param mixed $value
+     * @return string
+     */
+    private static function scalarToString(mixed $value): string
+    {
+        return is_scalar($value) ? (string) $value : '';
     }
 
     /**

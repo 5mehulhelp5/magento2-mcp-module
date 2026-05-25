@@ -10,7 +10,10 @@ namespace Magebit\Mcp\Controller\Adminhtml\Oauth;
 
 use Magebit\Mcp\Api\LoggerInterface;
 use Magebit\Mcp\Exception\OAuthException;
+use Magebit\Mcp\Model\OAuth\AdminAuthorizationDecision;
+use Magebit\Mcp\Model\OAuth\AdminAuthorizationGate;
 use Magebit\Mcp\Model\OAuth\AuthCodeIssuer;
+use Magebit\Mcp\Model\OAuth\AuthMode;
 use Magebit\Mcp\Model\OAuth\AuthorizeHandoffStorage;
 use Magebit\Mcp\Model\OAuth\ConsentParamsResolver;
 use Magebit\Mcp\Model\OAuth\InlineErrorRenderer;
@@ -59,6 +62,7 @@ class Authorize extends Action implements HttpGetActionInterface, HttpPostAction
      * @param ToolGrantResolver $toolGrantResolver
      * @param ConsentParamsResolver $consentParamsResolver
      * @param InlineErrorRenderer $inlineErrorRenderer
+     * @param AdminAuthorizationGate $adminAuthorizationGate
      * @param LoggerInterface $logger
      */
     public function __construct(
@@ -71,6 +75,7 @@ class Authorize extends Action implements HttpGetActionInterface, HttpPostAction
         private readonly ToolGrantResolver $toolGrantResolver,
         private readonly ConsentParamsResolver $consentParamsResolver,
         private readonly InlineErrorRenderer $inlineErrorRenderer,
+        private readonly AdminAuthorizationGate $adminAuthorizationGate,
         private readonly LoggerInterface $logger
     ) {
         parent::__construct($context);
@@ -108,6 +113,23 @@ class Authorize extends Action implements HttpGetActionInterface, HttpPostAction
             );
         }
         $client = $this->consentParamsResolver->resolveClient($params);
+        /** @var \Magento\User\Model\User|null $admin */
+        $admin = $this->_auth->getUser();
+
+        // Reject before the admin sees the consent screen so they're not led on:
+        // disabled clients, non-whitelisted admins (personal mode), and
+        // wrong-admin/un-pinned configs (shared mode) all redirect back to the
+        // OAuth client with the canonical OAuth error.
+        if ($client !== null) {
+            $decision = $this->adminAuthorizationGate->decide($client, $admin);
+            if (!$decision->isAllowed()) {
+                return $this->handleGateDenial(
+                    $decision,
+                    ConsentParamsResolver::stringFromParams($params, 'redirect_uri'),
+                    ConsentParamsResolver::stringFromParams($params, 'state')
+                );
+            }
+        }
 
         /** @var Page $page */
         $page = $this->pageFactory->create();
@@ -119,8 +141,6 @@ class Authorize extends Action implements HttpGetActionInterface, HttpPostAction
         $requestedScopes = $this->scopeValidator->parse(
             ConsentParamsResolver::nullableStringFromParams($params, 'scope')
         );
-        /** @var \Magento\User\Model\User|null $admin */
-        $admin = $this->_auth->getUser();
         $preTicked = $this->consentParamsResolver->computePreTickedTools($client, $admin, $requestedScopes);
 
         $block = $page->getLayout()->getBlock('mcp.oauth.authorize.consent');
@@ -129,6 +149,7 @@ class Authorize extends Action implements HttpGetActionInterface, HttpPostAction
             $block->setData('current_url', $this->_url->getCurrentUrl());
             $block->setData('requested_scopes', $requestedScopes);
             $block->setData('pre_ticked_tools', $preTicked);
+            $block->setData('is_shared_mode', $client !== null && $client->getAuthMode() === AuthMode::SHARED);
         }
         return $page;
     }
@@ -182,6 +203,26 @@ class Authorize extends Action implements HttpGetActionInterface, HttpPostAction
                 'error_description' => 'Admin session lost during approval.',
                 'state' => $state,
             ]);
+        }
+
+        // Re-check the gate even though renderConsent already did. The admin could
+        // have swapped accounts, an operator could have flipped auth_mode or the
+        // whitelist while the consent screen was open, or the client could have
+        // been disabled. Cheaper to re-check than to issue a bad token.
+        $gateDecision = $this->adminAuthorizationGate->decide($client, $admin);
+        if (!$gateDecision->isAllowed()) {
+            return $this->handleGateDenial($gateDecision, $redirectUri, $state);
+        }
+
+        // Shared mode: every issued auth code is bound to the pinned service admin.
+        // In practice the gate above already ensures $adminUserId equals the
+        // service admin id, but we encode the invariant explicitly so a future
+        // gate change can't silently desync issuance from policy.
+        if ($client->getAuthMode() === AuthMode::SHARED) {
+            $serviceAdminId = $client->getServiceAdminUserId();
+            if ($serviceAdminId !== null && $serviceAdminId > 0) {
+                $adminUserId = $serviceAdminId;
+            }
         }
 
         $rawResources = $this->getRequest()->getParam('resource');
@@ -269,6 +310,38 @@ class Authorize extends Action implements HttpGetActionInterface, HttpPostAction
     private function renderInlineError(int $httpStatus, string $error, string $description): HttpResponse
     {
         return $this->inlineErrorRenderer->render($this->httpResponse(), $httpStatus, $error, $description);
+    }
+
+    /**
+     * Render the OAuth-protocol response for a gate denial. We redirect back to
+     * the client's redirect_uri whenever we have one and it isn't empty so the
+     * Claude / MCP-client side surfaces the error; otherwise we fall back to an
+     * inline error page.
+     *
+     * @param AdminAuthorizationDecision $decision
+     * @param string $redirectUri
+     * @param string $state
+     * @return HttpResponse
+     */
+    private function handleGateDenial(
+        AdminAuthorizationDecision $decision,
+        string $redirectUri,
+        string $state
+    ): HttpResponse {
+        $this->logger->info('OAuth consent denied by AdminAuthorizationGate.', [
+            'decision' => $decision->value,
+            'redirect_uri' => $redirectUri,
+        ]);
+
+        if ($redirectUri === '') {
+            return $this->renderInlineError(403, $decision->oauthError(), $decision->description());
+        }
+
+        return $this->redirectToClient($redirectUri, [
+            'error' => $decision->oauthError(),
+            'error_description' => $decision->description(),
+            'state' => $state,
+        ]);
     }
 
     /**

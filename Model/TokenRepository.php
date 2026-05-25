@@ -136,6 +136,26 @@ class TokenRepository
     }
 
     /**
+     * Tokens issued for a specific (OAuth client, admin user) pair that are
+     * still usable — not revoked and not past their `expires_at`. Used by
+     * {@see \Magebit\Mcp\Model\OAuth\AccessTokenIssuer} to apply the
+     * `magebit_mcp/oauth/reauth_behavior` policy at issuance time.
+     *
+     * @param int $oauthClientId
+     * @param int $adminUserId
+     * @return array<int, Token>
+     */
+    public function getActiveByClientAndAdmin(int $oauthClientId, int $adminUserId): array
+    {
+        $collection = $this->collectionFactory->create();
+        $collection->addFieldToFilter('oauth_client_id', ['eq' => $oauthClientId]);
+        $collection->addFieldToFilter('admin_user_id', ['eq' => $adminUserId]);
+        $collection->addFieldToFilter('revoked_at', ['null' => true]);
+        $items = $this->narrowItems($collection->getItems());
+        return array_values(array_filter($items, static fn (Token $t): bool => !$t->isExpired()));
+    }
+
+    /**
      * @return array<int, Token>
      */
     public function getList(): array

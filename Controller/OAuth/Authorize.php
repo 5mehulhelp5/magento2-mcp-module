@@ -148,6 +148,13 @@ class Authorize implements HttpGetActionInterface, CsrfAwareActionInterface
             throw new OAuthException('invalid_client', 'Unknown client.', 400);
         }
 
+        if ($client->isDisabled()) {
+            // Treat disabled clients as not-found for the public flow; no redirect URI
+            // is yet validated, and we don't want to leak the "exists but disabled"
+            // distinction to anonymous callers.
+            throw new OAuthException('invalid_client', 'Unknown client.', 400);
+        }
+
         $redirectUri = $this->stringParam('redirect_uri');
         if ($redirectUri === null
             || $redirectUri === ''

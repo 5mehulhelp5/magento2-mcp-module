@@ -11,6 +11,8 @@ namespace Magebit\Mcp\Controller\Adminhtml\OAuthClient;
 use InvalidArgumentException;
 use Magebit\Mcp\Api\ToolRegistryInterface;
 use Magebit\Mcp\Helper\Acl\ToolResourceTree;
+use Magebit\Mcp\Model\OAuth\AuthMode;
+use Magebit\Mcp\Model\OAuth\Client;
 use Magebit\Mcp\Model\OAuth\ClientCredentialIssuer;
 use Magebit\Mcp\Model\OAuth\ClientRepository;
 use Magebit\Mcp\Model\Adminhtml\FormDataPersistence;
@@ -63,20 +65,31 @@ class Save extends Action implements HttpPostActionInterface
 
         /** @var HttpRequest $request */
         $request = $this->getRequest();
-        $raw = $request->getPostValue();
-        if (!is_array($raw) || $raw === []) {
+        $rawAny = $request->getPostValue();
+        if (!is_array($rawAny) || $rawAny === []) {
             $this->messageManager->addErrorMessage((string) __('Missing form payload.'));
             return $redirect->setPath('*/*/index');
+        }
+        // Narrow to string-keyed; numeric-keyed top-level entries from getPostValue() never
+        // map to form fields and are simply dropped.
+        $raw = [];
+        foreach ($rawAny as $key => $value) {
+            if (is_string($key)) {
+                $raw[$key] = $value;
+            }
         }
 
         $name = $this->extractName($raw);
         $redirectUris = $this->extractRedirectUris($raw);
         $allowedTools = $this->extractAllowedTools($raw);
+        $auth = $this->extractAuthorizationOptions($raw);
 
         $idRaw = $raw['id'] ?? 0;
         $editingId = is_scalar($idRaw) ? (int) $idRaw : 0;
 
-        if ($name === '' || $redirectUris === [] || $allowedTools === []) {
+        $authError = $this->validateAuthorizationOptions($auth);
+
+        if ($name === '' || $redirectUris === [] || $allowedTools === [] || $authError !== null) {
             $this->preserveFormData($raw, $allowedTools);
             if ($name === '') {
                 $this->messageManager->addErrorMessage((string) __('Name is required.'));
@@ -87,16 +100,19 @@ class Save extends Action implements HttpPostActionInterface
             if ($allowedTools === []) {
                 $this->messageManager->addErrorMessage((string) __('Pick at least one tool this client may request.'));
             }
+            if ($authError !== null) {
+                $this->messageManager->addErrorMessage($authError);
+            }
             return $editingId > 0
                 ? $redirect->setPath('*/*/edit', ['id' => $editingId])
                 : $redirect->setPath('*/*/new');
         }
 
         if ($editingId > 0) {
-            return $this->handleUpdate($redirect, $editingId, $name, $redirectUris, $allowedTools, $raw);
+            return $this->handleUpdate($redirect, $editingId, $name, $redirectUris, $allowedTools, $auth, $raw);
         }
 
-        return $this->handleCreate($redirect, $name, $redirectUris, $allowedTools, $raw);
+        return $this->handleCreate($redirect, $name, $redirectUris, $allowedTools, $auth, $raw);
     }
 
     /**
@@ -105,6 +121,13 @@ class Save extends Action implements HttpPostActionInterface
      * @param string $name
      * @param array<int, string> $redirectUris
      * @param array<int, string> $allowedTools
+     * @param array{
+     *     mode: AuthMode,
+     *     service_admin_user_id: ?int,
+     *     allowed_admin_user_ids: array<int, int>,
+     *     allowed_admin_role_ids: array<int, int>,
+     *     disabled: bool
+     * } $auth
      * @param array<string, mixed> $raw
      * @return Redirect
      */
@@ -114,6 +137,7 @@ class Save extends Action implements HttpPostActionInterface
         string $name,
         array $redirectUris,
         array $allowedTools,
+        array $auth,
         array $raw
     ): Redirect {
         try {
@@ -129,6 +153,7 @@ class Save extends Action implements HttpPostActionInterface
             $client->setName($name);
             $client->setRedirectUris($redirectUris);
             $client->setAllowedTools($allowedTools);
+            $this->applyAuthorizationOptions($client, $auth);
             $this->clientRepository->save($client);
         } catch (Throwable $e) {
             $this->preserveFormData($raw, $allowedTools);
@@ -149,6 +174,13 @@ class Save extends Action implements HttpPostActionInterface
      * @param string $name
      * @param array<int, string> $redirectUris
      * @param array<int, string> $allowedTools
+     * @param array{
+     *     mode: AuthMode,
+     *     service_admin_user_id: ?int,
+     *     allowed_admin_user_ids: array<int, int>,
+     *     allowed_admin_role_ids: array<int, int>,
+     *     disabled: bool
+     * } $auth
      * @param array<string, mixed> $raw
      * @return ResultInterface
      */
@@ -157,10 +189,16 @@ class Save extends Action implements HttpPostActionInterface
         string $name,
         array $redirectUris,
         array $allowedTools,
+        array $auth,
         array $raw
     ): ResultInterface {
         try {
             $issued = $this->issuer->issue($name, $redirectUris, $allowedTools);
+            // Apply the new authorization options as a second save — keeps the
+            // issuer signature stable and limits the blast radius of a future
+            // schema change to this controller.
+            $this->applyAuthorizationOptions($issued['client'], $auth);
+            $this->clientRepository->save($issued['client']);
         } catch (InvalidArgumentException $e) {
             $this->preserveFormData($raw, $allowedTools);
             $this->messageManager->addErrorMessage($e->getMessage());
@@ -291,6 +329,120 @@ class Save extends Action implements HttpPostActionInterface
             'name' => $raw['name'] ?? '',
             'redirect_uris' => $raw['redirect_uris'] ?? '',
             'allowed_tools' => $allowedTools,
+            'auth_mode' => $raw['auth_mode'] ?? AuthMode::PERSONAL->value,
+            'service_admin_user_id' => $raw['service_admin_user_id'] ?? '',
+            'allowed_admin_user_ids' => is_array($raw['allowed_admin_user_ids'] ?? null)
+                ? $raw['allowed_admin_user_ids']
+                : [],
+            'allowed_admin_role_ids' => is_array($raw['allowed_admin_role_ids'] ?? null)
+                ? $raw['allowed_admin_role_ids']
+                : [],
+            'disabled' => $raw['disabled'] ?? '0',
         ]);
+    }
+
+    /**
+     * @param array<string, mixed> $raw
+     * @return array{
+     *     mode: AuthMode,
+     *     service_admin_user_id: ?int,
+     *     allowed_admin_user_ids: array<int, int>,
+     *     allowed_admin_role_ids: array<int, int>,
+     *     disabled: bool
+     * }
+     */
+    private function extractAuthorizationOptions(array $raw): array
+    {
+        $modeRaw = $raw['auth_mode'] ?? AuthMode::PERSONAL->value;
+        $mode = AuthMode::tryFrom(is_string($modeRaw) ? $modeRaw : '') ?? AuthMode::PERSONAL;
+
+        $serviceAdminRaw = $raw['service_admin_user_id'] ?? null;
+        $serviceAdmin = is_scalar($serviceAdminRaw) && (int) $serviceAdminRaw > 0
+            ? (int) $serviceAdminRaw
+            : null;
+
+        $disabledRaw = $raw['disabled'] ?? '0';
+        $disabled = is_scalar($disabledRaw) && (int) $disabledRaw === 1;
+
+        return [
+            'mode' => $mode,
+            'service_admin_user_id' => $serviceAdmin,
+            'allowed_admin_user_ids' => $this->extractIntList($raw['allowed_admin_user_ids'] ?? null),
+            'allowed_admin_role_ids' => $this->extractIntList($raw['allowed_admin_role_ids'] ?? null),
+            'disabled' => $disabled,
+        ];
+    }
+
+    /**
+     * @param mixed $value
+     * @return array<int, int>
+     */
+    private function extractIntList(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+        $out = [];
+        $seen = [];
+        foreach ($value as $item) {
+            if (!is_scalar($item)) {
+                continue;
+            }
+            $int = (int) $item;
+            if ($int <= 0 || isset($seen[$int])) {
+                continue;
+            }
+            $seen[$int] = true;
+            $out[] = $int;
+        }
+        return $out;
+    }
+
+    /**
+     * @param array{
+     *     mode: AuthMode,
+     *     service_admin_user_id: ?int,
+     *     allowed_admin_user_ids: array<int, int>,
+     *     allowed_admin_role_ids: array<int, int>,
+     *     disabled: bool
+     * } $auth
+     * @return string|null Error string on misconfiguration, null on success.
+     */
+    private function validateAuthorizationOptions(array $auth): ?string
+    {
+        if ($auth['mode'] === AuthMode::SHARED && $auth['service_admin_user_id'] === null) {
+            return (string) __(
+                'Shared mode requires a Service Admin User. Pick the admin every issued token should be'
+                . ' bound to, or switch to Personal mode.'
+            );
+        }
+        return null;
+    }
+
+    /**
+     * @param Client $client
+     * @param array{
+     *     mode: AuthMode,
+     *     service_admin_user_id: ?int,
+     *     allowed_admin_user_ids: array<int, int>,
+     *     allowed_admin_role_ids: array<int, int>,
+     *     disabled: bool
+     * } $auth
+     */
+    private function applyAuthorizationOptions(Client $client, array $auth): void
+    {
+        $client->setAuthMode($auth['mode']);
+        if ($auth['mode'] === AuthMode::SHARED) {
+            $client->setServiceAdminUserId($auth['service_admin_user_id']);
+            // Whitelists only apply in personal mode — clear them to avoid stale UI state
+            // leaking back if the client is later switched back to personal.
+            $client->setAllowedAdminUserIds([]);
+            $client->setAllowedAdminRoleIds([]);
+        } else {
+            $client->setServiceAdminUserId(null);
+            $client->setAllowedAdminUserIds($auth['allowed_admin_user_ids']);
+            $client->setAllowedAdminRoleIds($auth['allowed_admin_role_ids']);
+        }
+        $client->setDisabled($auth['disabled']);
     }
 }
