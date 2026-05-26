@@ -188,8 +188,7 @@
                     a new consent while a previously issued token is still live.</p>
                     <ul>
                         <li><strong>Allow multiple</strong> (default) — keep prior tokens and issue a new one
-                        alongside. Recommended for shared organization connectors where multiple Claude seats
-                        consent through the same client.</li>
+                        alongside. Recommended for shared organization connectors</li>
                         <li><strong>Rotate</strong> — revoke every active token for the pair, then issue a
                         fresh one. Cleanest audit trail; breaks the multi-seat case.</li>
                         <li><strong>Reject</strong> — fail the token exchange with <code>invalid_grant</code>.
