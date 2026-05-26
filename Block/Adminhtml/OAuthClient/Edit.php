@@ -51,6 +51,15 @@ class Edit extends Container
             "location.href = '%s';",
             $this->getUrl('magebit_mcp/oauthclient/index')
         ));
+
+        // Hide on the new-client page — nothing to rotate yet.
+        if ($this->registry->registry(EditController::REGISTRY_KEY) instanceof ClientInterface) {
+            $this->buttonList->add('rotate_secret', [
+                'label' => __('Rotate Secret'),
+                'class' => 'action-secondary',
+                'onclick' => 'magebitMcpOpenRotateSecretModal();',
+            ], -1, 15);
+        }
     }
 
     /**

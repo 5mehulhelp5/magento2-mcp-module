@@ -105,6 +105,30 @@ class TokenRepository
     }
 
     /**
+     * Bulk-revoke every still-active token issued via the given OAuth client.
+     * Returns the number of rows updated.
+     *
+     * @param int $oauthClientId
+     * @return int
+     */
+    public function revokeAllForClient(int $oauthClientId): int
+    {
+        $connection = $this->resource->getConnection();
+        if ($connection === false) {
+            throw new RuntimeException('Default DB connection unavailable.');
+        }
+        $updated = $connection->update(
+            $this->resource->getMainTable(),
+            ['revoked_at' => $this->dateTime->gmtDate()],
+            [
+                $connection->quoteInto('oauth_client_id = ?', $oauthClientId),
+                'revoked_at IS NULL',
+            ]
+        );
+        return (int) $updated;
+    }
+
+    /**
      * Direct UPDATE, no model round-trip. Safe to call on every successful authentication.
      *
      * @param int $id

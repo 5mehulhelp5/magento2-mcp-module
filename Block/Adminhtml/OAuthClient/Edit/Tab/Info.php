@@ -195,8 +195,8 @@ class Info extends Generic implements TabInterface
         $fieldset->addField('client_secret_note', 'note', [
             'label' => __('Client Secret'),
             'text' => __(
-                'The client secret is shown only once at creation time. To rotate, delete'
-                . ' this client and create a new one.'
+                'The client secret is shown only once. Use the Rotate Secret button above to'
+                . ' generate a new one — the Client ID stays the same.'
             ),
         ]);
     }

@@ -39,4 +39,9 @@ class Created extends Template
     {
         return $this->getUrl('magebit_mcp/oauthclient/index');
     }
+
+    public function getIsRotation(): bool
+    {
+        return (bool) $this->getData('is_rotation');
+    }
 }

@@ -76,6 +76,20 @@ class ClientCredentialIssuer
     }
 
     /**
+     * Regenerates the client secret on an existing row; `client_id` is preserved.
+     *
+     * @param Client $client
+     * @return string
+     */
+    public function rotateSecret(Client $client): string
+    {
+        $plaintextSecret = $this->tokenGenerator->generate();
+        $client->setClientSecretHash($this->tokenHasher->hash($plaintextSecret));
+        $this->clientRepository->save($client);
+        return $plaintextSecret;
+    }
+
+    /**
      * @param mixed $uri
      * @return void
      * @throws InvalidArgumentException
