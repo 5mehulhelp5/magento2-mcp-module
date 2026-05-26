@@ -99,20 +99,18 @@ class ConfigGet implements ToolInterface
     {
         return Schema::object()
             ->string('path', fn (StringBuilder $s) => $s
-                ->pattern('^[A-Za-z0-9_]+(?:/[A-Za-z0-9_]+){1,}$')
-                ->description('Slash-separated config path (section/group/field).')
-                ->required()
-            )
+                ->pattern('^[A-Za-z0-9_]+(?:/[A-Za-z0-9_]+){2,}$')
+                ->description('Slash-separated config path (section/group/field; '
+                    . 'deeper nesting allowed for modules with nested groups).')
+                ->required())
             ->string('scope', fn (StringBuilder $s) => $s
                 ->enum(['default', 'websites', 'stores'])
                 ->description('Scope level. Defaults to `default`. '
-                    . 'Supply `scope_code` with `websites` / `stores`.')
-            )
+                    . 'Supply `scope_code` with `websites` / `stores`.'))
             ->string('scope_code', fn (StringBuilder $s) => $s
                 ->minLength(1)
                 ->description('Website / store code when `scope` is '
-                    . '`websites` or `stores`.')
-            )
+                    . '`websites` or `stores`.'))
             ->toArray();
     }
 
@@ -186,6 +184,26 @@ class ConfigGet implements ToolInterface
 
         $value = $this->scopeConfig->getValue($path, $scope, $scopeCode);
 
+        if (is_array($value)) {
+            return new ToolResult(
+                content: [['type' => 'text', 'text' => json_encode([
+                    'path' => $path,
+                    'scope' => $scope,
+                    'scope_code' => $scopeCode,
+                    'value' => null,
+                    'forbidden' => true,
+                    'reason' => 'non_leaf_value',
+                ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}']],
+                auditSummary: [
+                    'path' => $path,
+                    'scope' => $scope,
+                    'scope_code' => $scopeCode,
+                    'forbidden' => true,
+                    'reason' => 'non_leaf_value',
+                ]
+            );
+        }
+
         return new ToolResult(
             content: [['type' => 'text', 'text' => json_encode([
                 'path' => $path,
@@ -237,6 +255,10 @@ class ConfigGet implements ToolInterface
             if (is_string($backend) && $backend !== '' && $this->isEncryptedBackend($backend)) {
                 return [true, 'encrypted_backend_model'];
             }
+        } elseif ($field !== null) {
+            // Group / Section / Tab elements collapse to a sub-tree on read,
+            // bypassing the per-field sensitivity checks above. Refuse them.
+            return [true, 'non_field_path'];
         }
 
         if ($this->pathMatchesSensitiveKeyword($path)) {

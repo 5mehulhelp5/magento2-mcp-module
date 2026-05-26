@@ -93,8 +93,9 @@ class SchemaParityTest extends TestCase
             'properties' => [
                 'path' => [
                     'type' => 'string',
-                    'pattern' => '^[A-Za-z0-9_]+(?:/[A-Za-z0-9_]+){1,}$',
-                    'description' => 'Slash-separated config path (section/group/field).',
+                    'pattern' => '^[A-Za-z0-9_]+(?:/[A-Za-z0-9_]+){2,}$',
+                    'description' => 'Slash-separated config path (section/group/field; '
+                        . 'deeper nesting allowed for modules with nested groups).',
                 ],
                 'scope' => [
                     'type' => 'string',
