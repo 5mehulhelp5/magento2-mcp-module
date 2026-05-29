@@ -206,6 +206,25 @@ Admins granted this resource — and tokens minted for them — see the tool in 
 
 The array key is informational — the registry keys by `$tool->getName()` and enforces uniqueness at construction time. A duplicate registration (same `getName()` from two classes) fails at `setup:di:compile`.
 
+## Registering a domain label (optional)
+
+The first dotted segment of a tool name is its **domain** (`catalog.product.get` → `catalog`). The domain drives two presentation surfaces: the `Domain: Title` prefix on `tools/list` display titles, and the grouping in the OAuth consent tree. `Magebit\Mcp\Model\Util\ToolDomain` resolves a domain key to its label from a DI-injected map, falling back to `ucfirst()` for anything unmapped — so a new domain works out of the box (`inventory` → "Inventory").
+
+Register a label only when `ucfirst()` gets it wrong (acronyms, special casing). The `labels` argument is a merged array, so your `di.xml` adds to the core map without replacing it:
+
+```xml
+<!-- Vendor/Module/etc/di.xml -->
+<type name="Magebit\Mcp\Model\Util\ToolDomain">
+    <arguments>
+        <argument name="labels" xsi:type="array">
+            <item name="msi" xsi:type="string">MSI</item>
+        </argument>
+    </arguments>
+</type>
+```
+
+A later-loaded module reusing an existing key (e.g. `cms`) overrides it; order follows `module.xml` `<sequence>`.
+
 ## Step 4 — Run `bin/magento magebit:mcp:tools:validate-acl`
 
 This console command walks every registered tool and confirms:

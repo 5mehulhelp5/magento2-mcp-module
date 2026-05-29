@@ -18,6 +18,7 @@ use Magebit\Mcp\Model\JsonRpc\Request;
 use Magebit\Mcp\Model\JsonRpc\Response;
 use Magebit\Mcp\Model\Tool\SchemaSanitizer;
 use Magebit\Mcp\Model\Tool\WriteMode;
+use Magebit\Mcp\Model\Util\ToolDomain;
 
 class ToolsListHandler implements HandlerInterface
 {
@@ -27,13 +28,15 @@ class ToolsListHandler implements HandlerInterface
      * @param ModuleConfig $config
      * @param SchemaSanitizer $schemaSanitizer
      * @param LoggerInterface $logger
+     * @param ToolDomain $toolDomain
      */
     public function __construct(
         private readonly ToolRegistryInterface $toolRegistry,
         private readonly AclChecker $aclChecker,
         private readonly ModuleConfig $config,
         private readonly SchemaSanitizer $schemaSanitizer,
-        private readonly LoggerInterface $logger
+        private readonly LoggerInterface $logger,
+        private readonly ToolDomain $toolDomain
     ) {
     }
 
@@ -64,19 +67,18 @@ class ToolsListHandler implements HandlerInterface
             if (!$this->aclChecker->isAllowed($context->adminUser, $tool->getAclResource())) {
                 continue;
             }
+
+            $displayTitle = $this->toolDomain->prefixTitle($tool->getName(), $tool->getTitle());
             $tools[] = [
                 'name' => str_replace('.', '_', $tool->getName()),
-                'title' => $tool->getTitle(),
+                'title' => $displayTitle,
                 'description' => $tool->getDescription(),
                 'inputSchema' => $this->schemaSanitizer->sanitize(
                     $tool->getName(),
                     $tool->getInputSchema()
                 ),
-                // MCP spec 2025-06-18 §6.5 — clients (Claude Desktop, etc.)
-                // use destructiveHint to prompt the operator before firing
-                // tools that may delete or overwrite data.
                 'annotations' => [
-                    'title' => $tool->getTitle(),
+                    'title' => $displayTitle,
                     'readOnlyHint' => $tool->getWriteMode() === WriteMode::READ,
                     'destructiveHint' => $tool->getConfirmationRequired(),
                 ],

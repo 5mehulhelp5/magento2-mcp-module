@@ -13,10 +13,6 @@
     <preference for="Magebit\Mcp\Api\OAuth\ClientPresetProviderInterface"
                 type="Magebit\Mcp\Model\OAuth\ClientPresetProvider"/>
 
-    <!-- Dedicated MCP log channel → var/log/magebit_mcp.log. Classes inside
-         the module depend on Magebit\Mcp\Api\LoggerInterface and receive
-         this instance via the preference above; PSR-3 injections stay on
-         Magento's default system logger. -->
     <type name="Magebit\Mcp\Logger\Handler">
         <arguments>
             <argument name="filesystem" xsi:type="object">Magento\Framework\Filesystem\Driver\File</argument>
@@ -27,6 +23,20 @@
             <argument name="name" xsi:type="string">magebit_mcp</argument>
             <argument name="handlers" xsi:type="array">
                 <item name="system" xsi:type="object">Magebit\Mcp\Logger\Handler</item>
+            </argument>
+        </arguments>
+    </type>
+
+    <type name="Magebit\Mcp\Model\Util\ToolDomain">
+        <arguments>
+            <argument name="labels" xsi:type="array">
+                <item name="system" xsi:type="string">System</item>
+                <item name="catalog" xsi:type="string">Catalog</item>
+                <item name="customer" xsi:type="string">Customer</item>
+                <item name="sales" xsi:type="string">Sales</item>
+                <item name="cms" xsi:type="string">CMS</item>
+                <item name="marketing" xsi:type="string">Marketing</item>
+                <item name="reports" xsi:type="string">Reports</item>
             </argument>
         </arguments>
     </type>
