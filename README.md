@@ -20,6 +20,7 @@ The base module ships the transport, authentication, ACL, audit log, and tool re
   - [CMS module — `Magebit_McpCmsTools`](#cms-module--magebit_mcpcmstools)
   - [Marketing module — `Magebit_McpMarketingTools`](#marketing-module--magebit_mcpmarketingtools)
   - [Report module — `Magebit_McpReportTools`](#report-module--magebit_mcpreporttools)
+  - [Google Analytics module — `Magebit_McpGoogleAnalyticsTools`](#google-analytics-module--magebit_mcpgoogleanalyticstools)
 - [Setup](#setup)
 - [Connecting an AI agent](#connecting-an-ai-agent)
   - [Bearer token](#bearer-token)
@@ -118,6 +119,17 @@ composer require magebitcom/magento2-mcp-marketing-tools
 
 ```bash
 composer require magebitcom/magento2-mcp-report-tools
+```
+
+### Google Analytics module — [`Magebit_McpGoogleAnalyticsTools`](https://github.com/magebitcom/magento2-mcp-google-analytics-tools)
+- List Google Analytics accounts and GA4 properties for the connected Google account
+- Inspect GA4 property details (name, currency, timezone, industry) and linked Google Ads accounts
+- List a property's custom dimensions and metrics
+- Run GA4 Data API reports — core, real-time (last 30 minutes) and funnel
+- Read-only; authenticates to Google via OAuth with an encrypted refresh token
+
+```bash
+composer require magebitcom/magento2-mcp-google-analytics-tools
 ```
 
 ## Setup
