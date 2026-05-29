@@ -82,7 +82,7 @@ class Authorize extends Action implements HttpGetActionInterface, HttpPostAction
     /**
      * @return ResultInterface|HttpResponse
      */
-    public function execute(): ResultInterface|HttpResponse
+    public function execute()
     {
         $request = $this->getRequest();
         $nonce = $request->getParam('h');
