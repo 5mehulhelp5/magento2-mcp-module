@@ -16,6 +16,7 @@ use Magento\Backend\Model\View\Result\Page;
 use Magento\Backend\Model\View\Result\Redirect;
 use Magento\Framework\App\Action\HttpGetActionInterface;
 use Magento\Framework\Controller\ResultFactory;
+use Magento\Framework\Controller\ResultInterface;
 use Magento\Framework\Exception\NoSuchEntityException;
 use Magento\Framework\Registry;
 use Magento\Framework\View\Result\PageFactory;
@@ -49,7 +50,7 @@ class Edit extends Action implements HttpGetActionInterface
     /**
      * @return Page|Redirect
      */
-    public function execute(): Page|Redirect
+    public function execute(): ResultInterface
     {
         $idRaw = $this->getRequest()->getParam('id');
         $id = is_scalar($idRaw) ? (int) $idRaw : 0;
