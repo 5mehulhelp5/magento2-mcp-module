@@ -19,6 +19,7 @@ use Magebit\Mcp\Model\JsonRpc\Handler\ToolsListHandler;
 use Magebit\Mcp\Model\JsonRpc\Request;
 use Magebit\Mcp\Model\Tool\SchemaSanitizer;
 use Magebit\Mcp\Model\Tool\WriteMode;
+use Magebit\Mcp\Model\Util\ToolDomain;
 use Magento\User\Model\User;
 use PHPUnit\Framework\TestCase;
 
@@ -83,9 +84,30 @@ class ToolsListHandlerTest extends TestCase
         ));
 
         self::assertCount(1, $annotations);
-        self::assertSame('System.store.list', $annotations[0]['title']);
+        self::assertSame('System: System.store.list', $annotations[0]['title']);
         self::assertTrue($annotations[0]['readOnlyHint']);
         self::assertFalse($annotations[0]['destructiveHint']);
+    }
+
+    public function testDisplayTitleIsPrefixedWithDomainLabel(): void
+    {
+        // Acronym domains use the label map ("cms" → "CMS", not "Cms"), applied
+        // to both the top-level title and annotations.title.
+        $tool = $this->makeTool('cms.page.get', 'Magebit_McpCmsTools::tool_cms_page_get');
+        $handler = $this->makeHandler([$tool], allowWrites: true, scopes: null, aclAllow: true);
+
+        $response = $handler->handle(
+            new Request(1, false, 'tools/list', []),
+            new AuthenticatedContext($this->makeToken(null, true), $this->createMock(User::class))
+        );
+
+        self::assertNotNull($response->result);
+        $tools = $response->result['tools'] ?? null;
+        self::assertIsArray($tools);
+        self::assertIsArray($tools[0]);
+        self::assertSame('CMS: Cms.page.get', $tools[0]['title']);
+        self::assertIsArray($tools[0]['annotations']);
+        self::assertSame('CMS: Cms.page.get', $tools[0]['annotations']['title']);
     }
 
     public function testWriteToolWithoutConfirmationAdvertisesNonDestructiveAnnotations(): void
@@ -191,8 +213,9 @@ class ToolsListHandlerTest extends TestCase
         );
 
         $logger = $this->createMock(LoggerInterface::class);
+        $toolDomain = new ToolDomain(['system' => 'System', 'cms' => 'CMS', 'catalog' => 'Catalog']);
 
-        return new ToolsListHandler($registry, $aclChecker, $config, $sanitizer, $logger);
+        return new ToolsListHandler($registry, $aclChecker, $config, $sanitizer, $logger, $toolDomain);
     }
 
     private function makeTool(

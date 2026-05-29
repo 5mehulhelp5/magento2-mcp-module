@@ -13,6 +13,7 @@ use Magebit\Mcp\Api\ToolRegistryInterface;
 use Magebit\Mcp\Helper\Acl\ToolResourceTree;
 use Magebit\Mcp\Model\Acl\AclChecker;
 use Magebit\Mcp\Model\Auth\AdminUserLookup;
+use Magebit\Mcp\Model\Util\ToolDomain;
 use Magento\Framework\Acl\AclResource\ProviderInterface;
 use Magento\User\Model\User;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -61,7 +62,8 @@ class ToolResourceTreeTest extends TestCase
             $this->resourceProvider,
             $this->aclChecker,
             $this->adminUserLookup,
-            $this->toolRegistry
+            $this->toolRegistry,
+            new ToolDomain(['system' => 'System'])
         );
     }
 

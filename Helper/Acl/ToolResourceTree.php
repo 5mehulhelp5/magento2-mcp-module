@@ -11,20 +11,10 @@ namespace Magebit\Mcp\Helper\Acl;
 use Magebit\Mcp\Api\ToolRegistryInterface;
 use Magebit\Mcp\Model\Acl\AclChecker;
 use Magebit\Mcp\Model\Auth\AdminUserLookup;
+use Magebit\Mcp\Model\Util\ToolDomain;
 use Magento\Framework\Acl\AclResource\ProviderInterface;
 use Magento\Framework\Exception\NoSuchEntityException;
 
-/**
- * Builds the jstree-compatible tree of MCP tool ACL resources, intersected
- * with the chosen admin user's allowed resource set so the picker can mark
- * scopes the admin's role doesn't grant as disabled.
- *
- * Walks the Laminas ACL graph via `Acl::isAllowed()` rather than comparing
- * against `AclRetriever::getAllowedResourcesByUser()`'s output — that helper
- * returns only the *explicit* rule rows on the role, so a full-admin role
- * (single `Magento_Backend::all` rule + inheritance) collapses to one
- * resource and everything else looks denied.
- */
 class ToolResourceTree
 {
     public const ROOT_RESOURCE_ID = 'Magebit_Mcp::tools';
@@ -34,12 +24,14 @@ class ToolResourceTree
      * @param AclChecker $aclChecker
      * @param AdminUserLookup $adminUserLookup
      * @param ToolRegistryInterface $toolRegistry
+     * @param ToolDomain $toolDomain
      */
     public function __construct(
         private readonly ProviderInterface $resourceProvider,
         private readonly AclChecker $aclChecker,
         private readonly AdminUserLookup $adminUserLookup,
-        private readonly ToolRegistryInterface $toolRegistry
+        private readonly ToolRegistryInterface $toolRegistry,
+        private readonly ToolDomain $toolDomain
     ) {
     }
 
@@ -53,11 +45,6 @@ class ToolResourceTree
     }
 
     /**
-     * Build the tree without any per-admin ACL filter — every node renders
-     * enabled. Used by admin-agnostic forms (OAuth client edit) where the
-     * stored selection caps what can be requested at consent time, and the
-     * consent screen is what intersects with a specific admin's role.
-     *
      * @return array<int, array<string, mixed>>
      */
     public function buildUnrestricted(): array
@@ -101,11 +88,11 @@ class ToolResourceTree
                 continue;
             }
 
-            $groupKey = $this->groupKeyForToolName($toolName);
+            $groupKey = $this->toolDomain->keyFor($toolName);
             if (!isset($groups[$groupKey])) {
                 $groups[$groupKey] = [
                     'id' => 'mcp_group_' . $groupKey,
-                    'text' => $this->groupLabel($groupKey),
+                    'text' => $this->toolDomain->label($groupKey),
                     'state' => ['opened' => false, 'disabled' => true],
                     'a_attr' => new \stdClass(),
                     'children' => [],
@@ -146,31 +133,6 @@ class ToolResourceTree
         }
 
         return $output;
-    }
-
-    /**
-     * @param string $toolName
-     * @return string
-     */
-    private function groupKeyForToolName(string $toolName): string
-    {
-        $dotIdx = strpos($toolName, '.');
-        if ($dotIdx === false || $dotIdx === 0) {
-            return '_other';
-        }
-        return substr($toolName, 0, $dotIdx);
-    }
-
-    /**
-     * @param string $key
-     * @return string
-     */
-    private function groupLabel(string $key): string
-    {
-        if ($key === '_other') {
-            return (string) __('Other');
-        }
-        return ucfirst($key);
     }
 
     /**
