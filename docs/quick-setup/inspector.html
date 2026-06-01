@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Magento MCP — Verify with MCP Inspector</title>
+  <meta name="description" content="Use the official MCP Inspector to verify your Magento MCP server's authentication end to end — the OAuth sign-in flow and bearer-token access.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/svg+xml" href="../magebit.svg">
+  <!-- No .steps bar on this page, so add the breathing room below the hero. -->
+  <style>main { padding-top: 48px; }</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero__inner">
+    <div class="hero__brand">
+      <a class="hero__brand-link" href="https://magebit.com/" rel="noopener">
+        <img class="hero__logo" src="../logo-white.svg" alt="Magebit">
+      </a>
+      <a class="hero__github" href="https://github.com/magebitcom/magento2-mcp-module" rel="noopener" target="_blank">
+        <svg class="hero__github-icon" viewBox="0 0 16 16" width="20" height="20" aria-hidden="true">
+          <path fill="currentColor" fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" clip-rule="evenodd"/>
+        </svg>
+        <span>GitHub</span>
+      </a>
+    </div>
+    <p class="hero__eyebrow">Magento MCP — Verify authentication</p>
+    <h1>Confirm the sign-in works with MCP Inspector</h1>
+    <p class="hero__lede">The Inspector is the official interactive client for MCP servers. It walks the same OAuth sign-in an AI does — and shows you exactly where it succeeds or fails, in far more detail than any AI app will.</p>
+  </div>
+</header>
+
+<main>
+  <section class="section" data-active="true" aria-labelledby="inspector-title">
+    <div class="section__intro">
+      <h2 id="inspector-title">When to use this</h2>
+      <p>Use the Inspector when an AI reports something vague like <em>“Authorization failed”</em> and you need to see why. It surfaces the real HTTP responses behind the OAuth handshake and lets you list and call tools with a token. Run the <a href="diagnose.html">connection checker</a> first — if endpoints are unreachable or redirecting, fix that before reaching for the Inspector.</p>
+    </div>
+
+    <div class="callout callout--tip">
+      <p><strong>It runs on your machine.</strong> The Inspector is a local web UI — your store address and any token stay on your computer and never reach a third party.</p>
+    </div>
+
+    <h3>Before you start</h3>
+    <ul>
+      <li><strong>Node.js 22.7.5 or newer.</strong> Check with <code>node --version</code>; the Inspector refuses older versions.</li>
+      <li><strong>Your MCP server URL</strong> — the same <code>https://your-store.com/mcp</code> you'd give the AI.</li>
+      <li><strong>For the OAuth flow:</strong> a Magento admin login. You'll register an OAuth client for the Inspector in step 1 below — no client is needed up front.</li>
+      <li><strong>For the bearer-token flow:</strong> a token minted for your admin user.</li>
+    </ul>
+
+    <h3>Launch the Inspector</h3>
+    <p>From a terminal, run:</p>
+    <div class="codeblock">
+      <button class="codeblock__copy" data-copy="cmd-launch" aria-label="Copy command">Copy</button>
+      <pre><code id="cmd-launch">npx @modelcontextprotocol/inspector</code></pre>
+    </div>
+    <p>It prints a local web UI address (usually <code>http://localhost:6274</code>) and opens it in your browser, with a one-time session token pre-filled.</p>
+
+    <h2>Path A — Verify the OAuth sign-in</h2>
+    <p>This is the same flow an AI like Claude (web) uses. The server doesn't register clients automatically, so you first create an OAuth client for the Inspector in your Magento admin, then hand its Client ID and Secret to the Inspector.</p>
+    <ol class="steps-list">
+      <li>
+        <h3>Register the Inspector as an OAuth client</h3>
+        <p>In your Magento admin, go to <strong>System &rarr; MCP &rarr; OAuth Clients</strong> and click <strong>Add New Client</strong>. Give it a <strong>Name</strong> (e.g. <em>MCP Inspector</em>) and set <strong>Redirect URIs</strong> to the Inspector's callback — exactly this, one line, no trailing slash:</p>
+        <div class="codeblock">
+          <button class="codeblock__copy" data-copy="cmd-callback" aria-label="Copy callback URL">Copy</button>
+          <pre><code id="cmd-callback">http://localhost:6274/oauth/callback</code></pre>
+        </div>
+        <p>It must match character-for-character (<code>http://localhost</code> is allowed here precisely for local tools like this). Leave <strong>Auth Mode</strong> on <em>Personal</em>, open the <strong>Allowed Tools</strong> tab and grant some tools, then click <strong>Save Client</strong>.</p>
+      </li>
+      <li>
+        <h3>Copy the Client ID and Client Secret</h3>
+        <p>After saving, copy the <strong>Client ID</strong> and the <strong>Client Secret</strong>. The secret is shown only once — if you lose it, use <strong>Rotate Secret</strong> to generate a new one (the Client ID stays the same).</p>
+      </li>
+      <li>
+        <h3>Enter the credentials in the Inspector</h3>
+        <p>Set <strong>Transport Type</strong> to <strong>Streamable HTTP</strong> and <strong>URL</strong> to your <code>https://your-store.com/mcp</code> address. Expand <strong>Authentication</strong> and, under <strong>OAuth 2.0 Flow</strong>, paste the <strong>Client ID</strong> and <strong>Client Secret</strong>. Confirm <strong>Redirect URL</strong> reads <code>http://localhost:6274/oauth/callback</code> — the Inspector's default, which must match what you registered. You can leave <strong>Scope</strong> blank (it defaults to <code>mcp:read</code>); the scope string only hints the consent screen — what the token can actually do is set by the tools you grant in <strong>Allowed Tools</strong> and the store's <em>Allow Write Tools</em> setting, not by this field.</p>
+      </li>
+      <li>
+        <h3>Connect and approve</h3>
+        <p>Click <strong>Connect</strong>. You're sent to your store's consent screen — sign in with your Magento admin account if prompted, review the tools, and approve. You're redirected back, the connection turns green, and the <strong>Tools</strong> tab lists what the client can use. That confirms discovery, consent, the token exchange and the authenticated call all work.</p>
+      </li>
+    </ol>
+
+    <div class="callout">
+      <p><strong>If it fails here, the failure is visible.</strong> The Inspector shows the failing request and response — a redirect on the token exchange, a <code>401</code>, or a wrong callback URL — instead of the generic message an AI app shows. Compare what you see against the table at the bottom of this page.</p>
+    </div>
+
+    <h2>Path B — Verify a bearer token</h2>
+    <p>Use this to confirm a token works and to see which tools it can reach, without the OAuth round-trip.</p>
+    <ol class="steps-list">
+      <li>
+        <h3>Mint a token</h3>
+        <p>Create a token for your admin user. With CLI access to the store:</p>
+        <div class="codeblock">
+          <button class="codeblock__copy" data-copy="cmd-token" aria-label="Copy command">Copy</button>
+          <pre><code id="cmd-token">bin/magento magebit:mcp:token:create --admin-user=&lt;your-username&gt; --name=inspector</code></pre>
+        </div>
+        <p>Copy the plaintext token from the output — it's shown only once.</p>
+      </li>
+      <li>
+        <h3>Connect with the token</h3>
+        <p>Set <strong>Transport Type</strong> to <strong>Streamable HTTP</strong>, enter your <code>/mcp</code> URL, and paste the token into the <strong>Authentication</strong> field (the Inspector sends it as <code>Authorization: Bearer &lt;token&gt;</code>). Click <strong>Connect</strong>.</p>
+      </li>
+      <li>
+        <h3>List and call tools</h3>
+        <p>Open the <strong>Tools</strong> tab — it loads on connect. Pick a tool and run it with sample arguments to confirm an end-to-end call returns data. Every call is recorded in <strong>System &rarr; MCP &rarr; Audit Log</strong>.</p>
+      </li>
+    </ol>
+
+    <div class="callout callout--tip">
+      <p><strong>A short tool list isn't a bug.</strong> The core module ships the <code>system.*</code> tools (cache, indexes, store info, config); domain tools — orders, catalog, customers, CMS — come from the add-on modules. The list reflects what you granted in <strong>Allowed Tools</strong> and what your admin role permits, so a narrow list means a narrow grant, not a broken connection.</p>
+    </div>
+
+    <h3>Self-signed certificates (local / dev stores)</h3>
+    <p>If your store uses a self-signed HTTPS certificate, the Inspector's Node proxy will refuse the connection. Disable certificate checking for that one process only:</p>
+    <div class="codeblock">
+      <button class="codeblock__copy" data-copy="cmd-tls" aria-label="Copy command">Copy</button>
+      <pre><code id="cmd-tls">NODE_TLS_REJECT_UNAUTHORIZED=0 npx @modelcontextprotocol/inspector</code></pre>
+    </div>
+    <div class="callout">
+      <p><strong>Dev only.</strong> This turns off all certificate validation in the Inspector's Node process. Never export it globally or use it in CI, and never against a production store.</p>
+    </div>
+
+    <div class="troubleshoot">
+      <h3>Reading the failures</h3>
+      <dl>
+        <dt>Connect bounces or the token exchange shows a 3xx redirect</dt>
+        <dd>A redirect (often a store-code or locale rewrite like <code>/de/…</code>, or http&rarr;https) is sitting in front of the MCP endpoints. The MCP and OAuth paths must respond directly. Run the <a href="diagnose.html">connection checker</a> to pinpoint which endpoint redirects.</dd>
+        <dt>A "Basic" auth prompt appears, or the request lands on a login wall</dt>
+        <dd>An HTTP Basic-auth gateway (common on staging) is intercepting requests before Magento. Exclude the <code>/mcp</code> and <code>/.well-known/oauth-*</code> paths from it — and from any store-code redirect that would push them behind it.</dd>
+        <dt>401 Unauthorized after entering a token</dt>
+        <dd>The token is wrong, expired or revoked. Mint a fresh one and try again.</dd>
+        <dt>"invalid_client" or a wrong redirect URI during OAuth</dt>
+        <dd>The OAuth client doesn't exist, is disabled, or its allowed redirect URIs don't match. Check the client under <strong>System &rarr; MCP &rarr; OAuth Clients</strong>.</dd>
+        <dt>"Server unavailable" or 503</dt>
+        <dd>The server is turned off. Confirm <em>Enable MCP Server</em> is set to Yes under <strong>Stores &rarr; Configuration &rarr; Magebit &rarr; MCP Server</strong>.</dd>
+      </dl>
+    </div>
+
+    <div class="next-steps">
+      <h3>Endpoints unreachable?</h3>
+      <p>Start with the <a href="diagnose.html">connection checker</a> — it tests reachability and redirects from your browser in seconds. Or return to the <a href="index.html">setup guide</a>.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <p>Built by <a href="https://magebit.com/" rel="noopener">Magebit</a> · <a href="https://github.com/magebitcom/magento2-mcp-module" rel="noopener" target="_blank">View on GitHub</a></p>
+</footer>
+
+<script src="wizard.js"></script>
+</body>
+</html>

@@ -1,0 +1,142 @@
+/* Diagnostics checker — layered on top of styles.css */
+
+/* No .steps bar on this page, so add the breathing room below the hero. */
+main {
+  padding-top: 48px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.diagnose-form {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  margin: 0 0 16px;
+}
+
+.diagnose-form__field {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.diagnose-form__input {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  padding: 12px 14px;
+  border: 2px solid var(--grey-02);
+  border-radius: var(--radius-card);
+  color: var(--grey-06);
+  background: var(--white);
+}
+
+.diagnose-form__input:focus {
+  outline: none;
+  border-color: var(--tech-blue);
+}
+
+.diagnose-form__error {
+  color: var(--neon-red);
+  font-size: 0.875rem;
+  margin: 8px 0 0;
+}
+
+/* Summary banner */
+
+.summary {
+  font-weight: 500;
+  padding: 12px 16px;
+  border-radius: var(--radius-card);
+  margin: 0 0 24px;
+}
+
+.summary[data-status="pass"] { background: #e8faf0; color: #00753b; }
+.summary[data-status="warn"] { background: #fff5e8; color: #8a5200; }
+.summary[data-status="fail"] { background: #ffece6; color: #b32600; }
+
+/* Result list */
+
+.checks {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.check {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 16px;
+  margin: 0 0 8px;
+  max-width: none;
+  border: 1px solid var(--grey-02);
+  border-left: 4px solid var(--grey-02);
+  border-radius: var(--radius-card);
+  background: var(--white);
+}
+
+.check[data-status="running"] { border-left-color: var(--tech-blue); }
+.check[data-status="pass"]    { border-left-color: var(--emerald); }
+.check[data-status="warn"]    { border-left-color: var(--sunset); }
+.check[data-status="fail"]    { border-left-color: var(--neon-red); }
+
+.check__badge {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--white);
+  background: var(--grey-03);
+}
+
+.check[data-status="running"] .check__badge { background: var(--tech-blue); }
+.check[data-status="pass"]    .check__badge { background: var(--emerald); }
+.check[data-status="warn"]    .check__badge { background: var(--sunset); }
+.check[data-status="fail"]    .check__badge { background: var(--neon-red); }
+
+.check__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.check__label {
+  font-weight: 500;
+  color: var(--grey-06);
+  margin: 0 0 4px;
+  max-width: none;
+}
+
+.check__detail {
+  margin: 0;
+  color: var(--grey-05);
+  font-size: 0.9375rem;
+  max-width: none;
+  overflow-wrap: anywhere;
+}
+
+.check__fix {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  background: var(--grey-01);
+  border-radius: var(--radius-button);
+  color: var(--grey-05);
+  font-size: 0.875rem;
+  max-width: none;
+}
