@@ -17,6 +17,7 @@ use Magebit\Mcp\Model\OAuth\AuthCodeIssuer;
 use Magebit\Mcp\Model\OAuth\AuthMode;
 use Magebit\Mcp\Model\OAuth\AuthorizeHandoffStorage;
 use Magebit\Mcp\Model\OAuth\ConsentParamsResolver;
+use Magebit\Mcp\Model\OAuth\FormActionCspWhitelister;
 use Magebit\Mcp\Model\OAuth\InlineErrorRenderer;
 use Magebit\Mcp\Model\OAuth\PkceVerifier;
 use Magebit\Mcp\Model\OAuth\RedirectUriValidator;
@@ -61,6 +62,7 @@ class Authorize extends Action implements HttpGetActionInterface, HttpPostAction
      * @param ConsentParamsResolver $consentParamsResolver
      * @param InlineErrorRenderer $inlineErrorRenderer
      * @param AdminAuthorizationGate $adminAuthorizationGate
+     * @param FormActionCspWhitelister $formActionCspWhitelister
      * @param LoggerInterface $logger
      */
     public function __construct(
@@ -74,6 +76,7 @@ class Authorize extends Action implements HttpGetActionInterface, HttpPostAction
         private readonly ConsentParamsResolver $consentParamsResolver,
         private readonly InlineErrorRenderer $inlineErrorRenderer,
         private readonly AdminAuthorizationGate $adminAuthorizationGate,
+        private readonly FormActionCspWhitelister $formActionCspWhitelister,
         private readonly LoggerInterface $logger
     ) {
         parent::__construct($context);
@@ -126,6 +129,13 @@ class Authorize extends Action implements HttpGetActionInterface, HttpPostAction
                 );
             }
         }
+
+        // The consent form POSTs back here, then 302s cross-origin to the client's
+        // redirect_uri. form-action CSP governs that whole chain from this document,
+        // so the (already-validated) redirect origin must be whitelisted here.
+        $this->formActionCspWhitelister->whitelistRedirectTarget(
+            ConsentParamsResolver::stringFromParams($params, 'redirect_uri')
+        );
 
         /** @var Page $page */
         $page = $this->pageFactory->create();
